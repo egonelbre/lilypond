@@ -1,0 +1,21 @@
+[submodule "fonts/lilyjazz"]
+	path = fonts/lilyjazz
+	url = git@github.com:OpenLilyPondFonts/lilyjazz.git
+[submodule "fonts/beethoven"]
+	path = fonts/beethoven
+	url = git@github.com:OpenLilyPondFonts/beethoven.git
+[submodule "fonts/paganini"]
+	path = fonts/paganini
+	url = git@github.com:OpenLilyPondFonts/paganini.git
+[submodule "fonts/improviso"]
+	path = fonts/improviso
+	url = git@github.com:OpenLilyPondFonts/improviso.git
+[submodule "fonts/bravura"]
+	path = fonts/bravura
+	url = git@github.com:OpenLilyPondFonts/bravura.git
+[submodule "fonts/lilyboulez"]
+	path = fonts/lilyboulez
+	url = git@github.com:OpenLilyPondFonts/lilyboulez.git
+[submodule "fonts/lv-goldenage"]
+	path = fonts/lv-goldenage
+	url = git@github.com:OpenLilyPondFonts/lv-goldenage.git
