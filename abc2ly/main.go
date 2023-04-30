@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/egonelbre/lilypond/abc2ly/abc"
+	"golang.org/x/exp/slices"
 )
 
 func main() {
@@ -29,7 +30,9 @@ func main() {
 	}
 
 	c := Convert{Output: os.Stdout}
-	c.Tune(book.Tunes[0])
+	for _, tune := range book.Tunes {
+		c.Tune(tune)
+	}
 }
 
 type Convert struct {
@@ -61,6 +64,14 @@ func (c *Convert) Score(tune *abc.Tune) {
 		noteLength = abc.ParseNoteLength(f.Value)
 	}
 
+	const (
+		repeatNone      = 0
+		repeatNormal    = 1
+		repeatAlternate = 2
+	)
+
+	repeatMode := repeatNone
+
 	for i, stave := range tune.Body.Staves {
 		if i > 0 {
 			c.pf(" \\break\n")
@@ -70,10 +81,23 @@ func (c *Convert) Score(tune *abc.Tune) {
 		var lastSym abc.Symbol
 		accidentals := map[string]string{}
 
-		for _, sym := range stave.Symbols {
+		symbols := slices.Clone(stave.Symbols)
+
+		// sort notes before decorations and texts
+		for i := len(symbols) - 1; i >= 0; i-- {
+			if symbols[i].Kind == abc.KindNote {
+				p := i - 1
+				for p >= 0 && (symbols[p].Kind == abc.KindDeco || symbols[p].Kind == abc.KindText) {
+					symbols[p], symbols[p+1] = symbols[p+1], symbols[p]
+				}
+				i = p + 1
+			}
+		}
+
+		for _, sym := range symbols {
 			switch sym.Kind {
 			case abc.KindText:
-				// TODO:
+				c.pf(" ^%q", sym.Value)
 			case abc.KindNote:
 				dur := calculateDuration(&noteLength, &sym, &lastSym)
 
@@ -98,11 +122,12 @@ func (c *Convert) Score(tune *abc.Tune) {
 					} else {
 						n += accidentals[note.Pitch]
 					}
+
 					oct := note.Octave + 1
-					for range repeat(oct) {
+					for range iter(oct) {
 						n += "'"
 					}
-					for range repeat(-oct) {
+					for range iter(-oct) {
 						n += ","
 					}
 
@@ -121,6 +146,10 @@ func (c *Convert) Score(tune *abc.Tune) {
 					panic("invalid notes")
 				}
 
+				if sym.Tie {
+					value += "~"
+				}
+
 				c.pf(" %s%s", value, durationToString(dur))
 
 			case abc.KindRest:
@@ -130,28 +159,55 @@ func (c *Convert) Score(tune *abc.Tune) {
 				switch sym.Value {
 				case "z":
 					value = "r"
+					c.pf(" %s%s", value, durationToString(dur))
+				case "Z": // this should be full bar rest
+					value = "r"
+					dur.Mul(&dur, big.NewRat(2, 1)) // TODO: handle correctly
+					c.pf(" %s%s", value, durationToString(dur))
+				case "y":
 				default:
 					panic("unhandled rest " + sym.Value)
 				}
 
-				c.pf(" %s%s", value, durationToString(dur))
-
 			case abc.KindBar:
+
+				// TODO: handle volta
 				switch sym.Value {
 				case "|":
 					c.pf(` |`)
 				case "||":
 					c.pf(` \bar "||"`)
 				case "|]":
+					if repeatMode != repeatNone {
+						panic("still in repeat")
+					}
 					c.pf(` \bar "|."`)
+				case "|:":
+					c.pf(` \repeat volta 2 {`)
+					repeatMode = repeatNormal
+				case ":|", ":|]", ":]":
+					if repeatMode == repeatNone {
+						panic("not in repeat")
+					}
+					c.pf(" }")
+					repeatMode = repeatNone
 				default:
 					panic("unhandled bar " + sym.Value)
 				}
 
+				if sym.Volta != "" {
+					panic("unhandled volta")
+				}
+
 			case abc.KindDeco:
-
+				panic("unhandled deco " + sym.Value)
 			case abc.KindField:
-
+				switch sym.Tag {
+				case abc.FieldRemark.Tag:
+					// IGNORE
+				default:
+					panic("unhandled field " + sym.Tag + ":" + sym.Value)
+				}
 			default:
 				panic("unhandled " + sym.Kind.String())
 			}
@@ -170,23 +226,23 @@ func calculateDuration(noteLength *big.Rat, sym, lastNote *abc.Symbol) big.Rat {
 	dur := *noteLength
 	dur.Mul(&dur, &sym.Duration)
 
-	for range repeat(sym.Syncopation) {
+	for range iter(sym.Syncopation) {
 		dur.Mul(&dur, big.NewRat(3, 2))
 	}
-	for range repeat(-lastNote.Syncopation) {
+	for range iter(-lastNote.Syncopation) {
 		dur.Mul(&dur, big.NewRat(3, 2))
 	}
-	for range repeat(-sym.Syncopation) {
+	for range iter(-sym.Syncopation) {
 		dur.Mul(&dur, big.NewRat(1, 2))
 	}
-	for range repeat(lastNote.Syncopation) {
+	for range iter(lastNote.Syncopation) {
 		dur.Mul(&dur, big.NewRat(1, 2))
 	}
 
 	return dur
 }
 
-func repeat(n int) []struct{} {
+func iter(n int) []struct{} {
 	if n > 0 {
 		return make([]struct{}, n)
 	}
