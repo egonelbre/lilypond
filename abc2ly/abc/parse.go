@@ -109,10 +109,14 @@ func (p *Parser) ParseTune(content string) {
 			prevLine = line
 
 			line = p.TryParseField(line)
-			// TODO: try parse note
+			line = p.TryParseDeco(line)
 			line = p.TryParseNote(line)
 			line = p.TryParseText(line)
 			line = p.TryParseBar(line)
+
+			// TODO: handle note groups
+			// TODO: handle tuplets
+			// TODO: handle slurs
 
 			line = strings.TrimLeft(line, " \t")
 		}
@@ -138,6 +142,20 @@ func (p *Parser) TryParseField(line string) string {
 			Kind:  KindField,
 			Tag:   match[1],
 			Value: strings.TrimSpace(match[2]),
+		})
+		return strings.TrimLeft(line[len(match[0]):], " ")
+	}
+
+	return line
+}
+
+var rxDeco = regexp.MustCompile(`^([\.~HLMOPSTuv]|![^!]+!)`)
+
+func (p *Parser) TryParseDeco(line string) string {
+	if match := rxDeco.FindStringSubmatch(line); len(match) > 0 {
+		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+			Kind:  KindDeco,
+			Value: strings.TrimSpace(match[1]),
 		})
 		return strings.TrimLeft(line[len(match[0]):], " ")
 	}
