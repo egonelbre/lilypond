@@ -1,0 +1,19 @@
+X: 15
+T: #15
+M: 3/4
+L: 1/4
+C: Erich Leopold Elbre
+H: 12 märts 1981
+K: C octave=-1
+|: "E" e>_e=e | "Ab" f2 "E" e | "Ab" a_a=a |f'e'c' | a>_a=a | c'ba | a>c'd' | e'3 |
+"E" e'b_a | d'>c'b | "Ab" c'ba | afd | "E" e>_ab | b>_b=b | f'e'c' | "Ab" a2 z :|
+"G" g2 g/a/ | g>ab | "C" c'^c'd' | f'2 e' | "Ab" a2 a/_b/ | a=b^c' | "D" d'2 e' | "G" g'2f' |
+"Db" f'>d' a | a>fd | "Ab" e'^c'a | a_a=a | _bae | ga^c' | d'3- | d' z2 ||
+d'c'2 | d'_b2 | d'a2 | a/_b/a z | ad2 |e/f/g2 | a/_b/ad' | e'f'g'|
+a'a'>e' | f'g'f' | e'd'2- | d'2 z | d'/c'/ a2 | a/g/f2 | g/f/d2 | cdz |
+|: "F" f/g/a2 | f/g/ c'2 | a/c'/f'2- | f'2e' | a_b2 | "Bb" ge2 | ga2 | "F" f2 z :|
+|: "Bb" d'f>_b | d'_e'd' | f'ac' | f'2 z | fga | _bc'd' | c'_bc' | "Bb" d'3 :|
+|: "Eb/Bb" ^d'g_b | g_b^d' | f_bd' | _b3 | c'af | fac' | d'_bf | _b2 z :|
+g_eg | _bag | f_bd' | _b3 | ^d'c'a | f'c'a | _bd'f' | _b2 z |
+g_eg | ^g-g=g | gfe | f2 z | _bc'd' | d'c'd' | ^d'_bg | ^d' z2 |
+c'2 c' | _a2 c' | _e'd'c' | _bg_b | _e'3 | _b2 _a | g2 _b | ^d'3 |]
