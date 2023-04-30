@@ -421,7 +421,7 @@ type FieldType byte
 const (
 	FieldTypeString      = FieldType(0)
 	FieldTypeInstruction = FieldType(1)
-	FieldTypeAny         = FieldType(2)
+	FieldTypeUnknown     = FieldType(2)
 )
 
 var FieldDefs = []FieldDef{
@@ -442,7 +442,7 @@ var FieldDefs = []FieldDef{
 	{"P", "parts", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "P:A, P:ABAC, P:(A2B)3"},
 	{"Q", "tempo", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "Q:\"allegro\" 1/4=120"},
 	{"R", "rhythm", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeString, "R:R, R:reel"},
-	{"r", "remark", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeAny, "r:I love abc"},
+	{"r", "remark", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeUnknown, "r:I love abc"},
 	{"S", "source", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "S:collected in Brittany"},
 	{"s", "symbol line", FieldInTuneBody, FieldTypeInstruction, "s: !pp! ** !f!"},
 	{"T", "tune title", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "T:Paddy O'Rafferty"},
