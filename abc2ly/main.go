@@ -85,7 +85,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 
 		// sort notes before decorations and texts
 		for i := len(symbols) - 1; i >= 0; i-- {
-			if symbols[i].Kind == abc.KindNote {
+			if symbols[i].Kind == abc.KindNote || symbols[i].Kind == abc.KindRest {
 				p := i - 1
 				for p >= 0 && (symbols[p].Kind == abc.KindDeco || symbols[p].Kind == abc.KindText) {
 					symbols[p], symbols[p+1] = symbols[p+1], symbols[p]
@@ -146,11 +146,12 @@ func (c *Convert) Score(tune *abc.Tune) {
 					panic("invalid notes")
 				}
 
+				tie := ""
 				if sym.Tie {
-					value += "~"
+					tie = "~"
 				}
 
-				c.pf(" %s%s", value, durationToString(dur))
+				c.pf(" %s%s%s", value, durationToString(dur), tie)
 
 			case abc.KindRest:
 				dur := calculateDuration(&noteLength, &sym, &lastSym)
