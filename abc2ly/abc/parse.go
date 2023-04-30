@@ -12,7 +12,10 @@ var rxHeader = regexp.MustCompile(`^([a-zA-Z]):(.*)$`)
 var rxNewTune = regexp.MustCompile(`(?m)^X:`) // TODO: avoid regex
 
 type Parser struct {
-	Book     *TuneBook
+	Book  *TuneBook
+	Tune  *Tune
+	Stave *Stave
+
 	Warnings []Warning
 }
 
@@ -57,12 +60,12 @@ func (p *Parser) ParseBook(content string) {
 }
 
 func (p *Parser) ParseTune(content string) {
-	tune := &Tune{Raw: content}
+	p.Tune = &Tune{Raw: content}
 
 	inheader := true
 
-	var noteLength big.Rat
 	for _, line := range strings.Split(content, "\n") {
+		line = trimComment(line)
 		line = trimTrailingWhitespace(line)
 		if line == "" {
 			continue
@@ -77,20 +80,19 @@ func (p *Parser) ParseTune(content string) {
 				value := strings.TrimSpace(match[2])
 				switch match[1] {
 				case "X":
-					tune.ID = value
+					p.Tune.ID = value
 				case "T":
-					tune.Title = value
+					p.Tune.Title = value
 				case "L":
-					tune.NoteLength = ParseNoteLength(value)
-					noteLength = tune.NoteLength
+					p.Tune.NoteLength = ParseNoteLength(value)
 				case "M":
-					tune.Meter = ParseMeter(value)
+					p.Tune.Meter = ParseMeter(value)
 				case "K":
-					tune.Key = value
+					p.Tune.Key = value
 					inheader = false
 				}
 
-				tune.Fields = append(tune.Fields, Field{
+				p.Tune.Fields = append(p.Tune.Fields, Field{
 					Tag:   match[1],
 					Value: value,
 				})
@@ -101,12 +103,171 @@ func (p *Parser) ParseTune(content string) {
 			inheader = false
 		}
 
-		if noteLength == (big.Rat{}) {
-			noteLength = *big.NewRat(1, 4)
+		p.Stave = &Stave{}
+		prevLine := ""
+		for prevLine != line {
+			prevLine = line
+
+			line = p.TryParseField(line)
+			// TODO: try parse note
+			line = p.TryParseNote(line)
+			line = p.TryParseText(line)
+			line = p.TryParseBar(line)
+
+			line = strings.TrimLeft(line, " \t")
+		}
+		if len(p.Stave.Symbols) > 0 {
+			p.Tune.Body.Staves = append(p.Tune.Body.Staves, *p.Stave)
+		}
+		p.Stave = nil
+		if line != "" {
+			p.Warnings = append(p.Warnings, Warning{
+				Message: fmt.Sprintf("unable to parse %q", line),
+			})
 		}
 	}
 
-	p.Book.Tunes = append(p.Book.Tunes, tune)
+	p.Book.Tunes = append(p.Book.Tunes, p.Tune)
+}
+
+var rxInlineField = regexp.MustCompile(`^\[([a-zA-Z]):([^\]]*)\]`)
+
+func (p *Parser) TryParseField(line string) string {
+	if match := rxInlineField.FindStringSubmatch(line); len(match) > 0 {
+		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+			Kind:  KindField,
+			Tag:   match[1],
+			Value: strings.TrimSpace(match[2]),
+		})
+		return strings.TrimLeft(line[len(match[0]):], " ")
+	}
+
+	return line
+}
+
+var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-Gzx])([,']*)([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
+
+func (p *Parser) TryParseNote(line string) string {
+	if match := rxNote.FindStringSubmatch(line); len(match) > 0 {
+		accidentals := match[1]
+		note := match[2]
+		octave := match[3]
+		duration := match[4]
+		halving := match[5]
+		divider := match[6]
+		syncopate := match[7]
+		tie := match[8]
+
+		dur := big.NewRat(1, 1)
+		if duration != "" {
+			v, err := strconv.Atoi(duration)
+			if err != nil {
+				// TODO: fix error handling
+				panic(err)
+			}
+			dur.Mul(dur, big.NewRat(int64(v), 1))
+		}
+		if len(halving) == 1 && divider != "" {
+			div, err := strconv.Atoi(divider)
+			if err != nil {
+				// TODO: fix error handling
+				panic(err)
+			}
+			dur.Mul(dur, big.NewRat(1, int64(div)))
+		} else {
+			for k := 0; k < len(halving); k++ {
+				dur.Mul(dur, big.NewRat(1, 2))
+			}
+		}
+
+		oct := 0
+		if up := strings.ToUpper(note); up != note { // normalize to upper-case
+			note = up
+			oct++
+		}
+
+		for _, b := range octave {
+			switch b {
+			case '\'':
+				oct++
+			case ',':
+				oct--
+			}
+		}
+
+		sync := 0
+		for _, b := range syncopate {
+			switch b {
+			case '<':
+				sync--
+			case '>':
+				sync++
+			}
+		}
+
+		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+			Kind:        KindNote,
+			Value:       note,
+			Octave:      oct,
+			Duration:    *dur,
+			Accidentals: accidentals,
+			Tie:         tie != "",
+			Syncopation: sync,
+		})
+
+		return strings.TrimLeft(line[len(match[0]):], " ")
+	}
+
+	return line
+}
+
+var rxText = regexp.MustCompile(`^"([^"]*)"`) // TODO: handle escaping "
+
+func (p *Parser) TryParseText(line string) string {
+	if match := rxText.FindStringSubmatch(line); len(match) > 0 {
+		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+			Kind:  KindText,
+			Value: match[1],
+		})
+		return strings.TrimLeft(line[len(match[0]):], " ")
+	}
+
+	return line
+}
+
+var rxBar = regexp.MustCompile(`^([\:\|\[\]]*[\:\|\]])(?:(?:\s*\[)?([0-9\-\,]+)|(\])|)`)
+
+func (p *Parser) TryParseBar(line string) string {
+	if match := rxBar.FindStringSubmatch(line); len(match) > 0 {
+		bar := match[1]
+		volta := match[2]
+		end := match[3]
+		if volta != "" {
+			volta = strings.TrimLeft(volta, " [")
+		}
+
+		switch bar {
+		case "::", ":|:", ":||:":
+			p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+				Kind:  KindBar,
+				Value: ":|",
+				Volta: end,
+			}, Symbol{
+				Kind:  KindBar,
+				Value: "|:",
+				Volta: volta,
+			})
+		default:
+			p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+				Kind:  KindBar,
+				Value: match[1],
+				Volta: volta + end,
+			})
+		}
+
+		return strings.TrimLeft(line[len(match[0]):], " ")
+	}
+	return line
 }
 
 func ParseMeter(s string) (m Meter) {
@@ -148,6 +309,15 @@ func trimTrailingWhitespace(line string) string {
 	return strings.TrimRight(line, " \t\n")
 }
 
+func trimComment(line string) string {
+	// TODO: handle escaping of %
+	p := strings.IndexByte(line, '%')
+	if p < 0 {
+		return line
+	}
+	return line[:p]
+}
+
 type TuneBook struct {
 	Tunes []*Tune
 }
@@ -187,19 +357,46 @@ type Stave struct {
 }
 
 type Symbol struct {
-	Kind     Kind
-	Text     string
-	Duration big.Rat
-	Tie      bool
+	Kind        Kind
+	Value       string
+	Duration    big.Rat
+	Syncopation int
+
+	Accidentals string
+	Tie         bool
+	Octave      int
+	Tag         string
+	Volta       string
 }
 
 type Kind byte
 
+func (k Kind) String() string {
+	switch k {
+	case KindText:
+		return "Text"
+	case KindNote:
+		return "Note"
+	case KindBar:
+		return "Bar"
+	case KindDeco:
+		return "Deco"
+	case KindField:
+		return "Field"
+	case KindVolta:
+		return "Volta"
+	default:
+		return fmt.Sprintf("Kind(%d)", k)
+	}
+}
+
 const (
-	KindText = Kind(1)
-	KindNote = Kind(2)
-	KindBar  = Kind(3)
-	KindDeco = Kind(4)
+	KindText  = Kind(1)
+	KindNote  = Kind(2)
+	KindBar   = Kind(3)
+	KindDeco  = Kind(4)
+	KindField = Kind(5)
+	KindVolta = Kind(6)
 )
 
 type FieldDef struct {

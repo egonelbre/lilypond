@@ -5,6 +5,9 @@ import (
 	"testing"
 )
 
+//go:embed testdata/simple.abc
+var simple string
+
 //go:embed testdata/15.abc
 var tune15 string
 
@@ -16,12 +19,24 @@ var tunebook = "\n" + tune15 + "\n" + tune16 + "\n"
 func TestParse(t *testing.T) {
 	book, warnings := Parse(tunebook)
 	require(t, 2, len(book.Tunes))
-	if len(book.Tunes) != 2 {
-		t.Fatal("expected 2 tunes")
+	for _, warn := range warnings {
+		t.Error(warn)
 	}
-	t.Log(warnings)
+}
+
+func TestSimple(t *testing.T) {
+	book, warnings := Parse(simple)
+	require(t, 1, len(book.Tunes))
+	for _, warn := range warnings {
+		t.Error(warn)
+	}
 	for _, tune := range book.Tunes {
-		t.Logf("%#v\n", tune)
+		for _, stave := range tune.Body.Staves {
+			t.Log("stave")
+			for _, sym := range stave.Symbols {
+				t.Logf("%v\n", sym)
+			}
+		}
 	}
 }
 
