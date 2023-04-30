@@ -163,18 +163,17 @@ func (p *Parser) TryParseDeco(line string) string {
 	return line
 }
 
-var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-GyzZxX])([,']*)([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
+var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-G][,']*|\[(?:[a-gA-G][,']*)+\]|[yzZxX])([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
 
 func (p *Parser) TryParseNote(line string) string {
 	if match := rxNote.FindStringSubmatch(line); len(match) > 0 {
 		accidentals := match[1]
 		note := match[2]
-		octave := match[3]
-		duration := match[4]
-		halving := match[5]
-		divider := match[6]
-		syncopate := match[7]
-		tie := match[8]
+		duration := match[3]
+		halving := match[4]
+		divider := match[5]
+		syncopate := match[6]
+		tie := match[7]
 
 		dur := big.NewRat(1, 1)
 		if duration != "" {
@@ -198,21 +197,6 @@ func (p *Parser) TryParseNote(line string) string {
 			}
 		}
 
-		oct := 0
-		if up := strings.ToUpper(note); note != "y" && note != "Y" && note != "z" && note != "x" && up != note { // normalize to upper-case
-			note = up
-			oct++
-		}
-
-		for _, b := range octave {
-			switch b {
-			case '\'':
-				oct++
-			case ',':
-				oct--
-			}
-		}
-
 		sync := 0
 		for _, b := range syncopate {
 			switch b {
@@ -226,7 +210,6 @@ func (p *Parser) TryParseNote(line string) string {
 		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
 			Kind:        KindNote,
 			Value:       note,
-			Octave:      oct,
 			Duration:    *dur,
 			Accidentals: accidentals,
 			Tie:         tie != "",
@@ -382,7 +365,6 @@ type Symbol struct {
 
 	Accidentals string
 	Tie         bool
-	Octave      int
 	Tag         string
 	Volta       string
 }
