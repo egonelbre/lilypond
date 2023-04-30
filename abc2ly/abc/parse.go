@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 var rxHeader = regexp.MustCompile(`^([a-zA-Z]):(.*)$`)
@@ -83,8 +84,6 @@ func (p *Parser) ParseTune(content string) {
 					p.Tune.ID = value
 				case "T":
 					p.Tune.Title = value
-				case "L":
-					p.Tune.NoteLength = ParseNoteLength(value)
 				case "M":
 					p.Tune.Meter = ParseMeter(value)
 				case "K":
@@ -163,17 +162,17 @@ func (p *Parser) TryParseDeco(line string) string {
 	return line
 }
 
-var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-G][,']*|\[(?:[a-gA-G][,']*)+\]|[yzZxX])([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
+var rxNote = regexp.MustCompile(`^([\_\^=]*[a-gA-G][,']*|\[(?:[\_\^=]*[a-gA-G][,']*)+\]|[yzZxX])([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
+var rxNotePitch = regexp.MustCompile(`([\_\^=]*)([a-gA-G])([,']*)`)
 
 func (p *Parser) TryParseNote(line string) string {
 	if match := rxNote.FindStringSubmatch(line); len(match) > 0 {
-		accidentals := match[1]
-		note := match[2]
-		duration := match[3]
-		halving := match[4]
-		divider := match[5]
-		syncopate := match[6]
-		tie := match[7]
+		note := match[1]
+		duration := match[2]
+		halving := match[3]
+		divider := match[4]
+		syncopate := match[5]
+		tie := match[6]
 
 		dur := big.NewRat(1, 1)
 		if duration != "" {
@@ -207,11 +206,49 @@ func (p *Parser) TryParseNote(line string) string {
 			}
 		}
 
+		if isRest(note) {
+			p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+				Kind:        KindRest,
+				Value:       note,
+				Duration:    *dur,
+				Tie:         tie != "",
+				Syncopation: sync,
+			})
+			return strings.TrimLeft(line[len(match[0]):], " ")
+		}
+
+		var notes []Note
+		for _, match := range rxNotePitch.FindAllStringSubmatch(note, -1) {
+			note := Note{}
+
+			note.Accidentals = match[1]
+
+			for _, v := range match[3] {
+				switch v {
+				case ',':
+					note.Octave--
+				case '\'':
+					note.Octave++
+				}
+			}
+
+			note.Pitch = strings.ToLower(match[2])
+
+			if unicode.IsLower(rune(match[2][0])) {
+				note.Octave++
+			}
+
+			notes = append(notes, note)
+		}
+
+		if len(notes) == 0 {
+			panic("failed to parse note " + note)
+		}
+
 		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
 			Kind:        KindNote,
-			Value:       note,
+			Notes:       notes,
 			Duration:    *dur,
-			Accidentals: accidentals,
 			Tie:         tie != "",
 			Syncopation: sync,
 		})
@@ -220,6 +257,14 @@ func (p *Parser) TryParseNote(line string) string {
 	}
 
 	return line
+}
+
+func isRest(v string) bool {
+	switch v {
+	case "y", "z", "Z", "x", "X":
+		return true
+	}
+	return false
 }
 
 var rxText = regexp.MustCompile(`^"([^"]*)"`) // TODO: handle escaping "
@@ -329,8 +374,7 @@ type Tune struct {
 	Key    string
 	Fields Fields
 
-	NoteLength big.Rat
-	Meter      Meter
+	Meter Meter
 
 	Body TuneBody
 
@@ -348,6 +392,15 @@ type TuneBody struct {
 
 type Fields []Field
 
+func (fields Fields) ByTag(tag string) (Field, bool) {
+	for _, f := range fields {
+		if f.Tag == tag {
+			return f, true
+		}
+	}
+	return Field{}, false
+}
+
 type Field struct {
 	Tag   string
 	Value string
@@ -360,13 +413,19 @@ type Stave struct {
 type Symbol struct {
 	Kind        Kind
 	Value       string
+	Notes       []Note
 	Duration    big.Rat
 	Syncopation int
 
+	Tie   bool
+	Tag   string
+	Volta string
+}
+
+type Note struct {
 	Accidentals string
-	Tie         bool
-	Tag         string
-	Volta       string
+	Pitch       string
+	Octave      int
 }
 
 type Kind byte
@@ -377,14 +436,14 @@ func (k Kind) String() string {
 		return "Text"
 	case KindNote:
 		return "Note"
+	case KindRest:
+		return "Rest"
 	case KindBar:
 		return "Bar"
 	case KindDeco:
 		return "Deco"
 	case KindField:
 		return "Field"
-	case KindVolta:
-		return "Volta"
 	default:
 		return fmt.Sprintf("Kind(%d)", k)
 	}
@@ -393,10 +452,10 @@ func (k Kind) String() string {
 const (
 	KindText  = Kind(1)
 	KindNote  = Kind(2)
-	KindBar   = Kind(3)
-	KindDeco  = Kind(4)
-	KindField = Kind(5)
-	KindVolta = Kind(6)
+	KindRest  = Kind(3)
+	KindBar   = Kind(4)
+	KindDeco  = Kind(5)
+	KindField = Kind(6)
 )
 
 type FieldDef struct {
@@ -424,32 +483,68 @@ const (
 	FieldTypeUnknown     = FieldType(2)
 )
 
+var (
+	FieldArea            = FieldDef{"A", "area", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "A:Donegal, A:Bampton"} // outdated information field syntax
+	FieldBook            = FieldDef{"B", "book", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "B:O'Neills"}
+	FieldComposer        = FieldDef{"C", "composer", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "C:Robert Jones, C:Trad."}
+	FieldDiscography     = FieldDef{"D", "discography", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "D:Chieftains IV"}
+	FieldFile            = FieldDef{"F", "file url", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "F:http://a.b.c/file.abc"}
+	FieldGroup           = FieldDef{"G", "group", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "G:flute"}
+	FieldHistory         = FieldDef{"H", "history", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "H:The story behind this tune ..."}
+	FieldInstruction     = FieldDef{"I", "instruction", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "I:papersize A4, I:newpage"}
+	FieldKey             = FieldDef{"K", "key", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "K:G, K:Dm, K:AMix"}
+	FieldUnitNoteLength  = FieldDef{"L", "unit note length", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "L:1/4"}
+	FieldMeter           = FieldDef{"M", "meter", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "M:3/4, M:4/4"}
+	FieldMacro           = FieldDef{"m", "macro", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "m: ~G2 = {A}G{F}G"}
+	FieldNotes           = FieldDef{"N", "notes", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeString, "N:see also O'Neills - 234"}
+	FieldOrigin          = FieldDef{"O", "origin", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "O:UK; Yorkshire; Bradford"}
+	FieldParts           = FieldDef{"P", "parts", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "P:A, P:ABAC, P:(A2B)3"}
+	FieldTempo           = FieldDef{"Q", "tempo", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "Q:\"allegro\" 1/4=120"}
+	FieldRhythm          = FieldDef{"R", "rhythm", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeString, "R:R, R:reel"}
+	FieldRemark          = FieldDef{"r", "remark", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeUnknown, "r:I love abc"}
+	FieldSource          = FieldDef{"S", "source", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "S:collected in Brittany"}
+	FieldSymbolLine      = FieldDef{"s", "symbol line", FieldInTuneBody, FieldTypeInstruction, "s: !pp! ** !f!"}
+	FieldTuneTitle       = FieldDef{"T", "tune title", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "T:Paddy O'Rafferty"}
+	FieldUserDefined     = FieldDef{"U", "user defined", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "U: T = !trill!"}
+	FieldVoice           = FieldDef{"V", "voice", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "V:4 clef=bass"}
+	FieldWords           = FieldDef{"W", "words", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "W:lyrics printed after the end of the tune"}
+	FieldWords2          = FieldDef{"w", "words", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "W:lyrics printed after the end of the tune"}
+	FieldReferenceNumber = FieldDef{"X", "reference number", FieldInTuneHeader, FieldTypeInstruction, "X:1, X:2"}
+	FieldTranscription   = FieldDef{"Z", "transcription", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "Z:John Smith, <j.s@example.com>"}
+)
+
 var FieldDefs = []FieldDef{
-	{"A", "area", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "A:Donegal, A:Bampton"}, // outdated information field syntax
-	{"B", "book", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "B:O'Neills"},
-	{"C", "composer", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "C:Robert Jones, C:Trad."},
-	{"D", "discography", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "D:Chieftains IV"},
-	{"F", "file url", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "F:http://a.b.c/file.abc"},
-	{"G", "group", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "G:flute"},
-	{"H", "history", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "H:The story behind this tune ..."},
-	{"I", "instruction", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "I:papersize A4, I:newpage"},
-	{"K", "key", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "K:G, K:Dm, K:AMix"},
-	{"L", "unit note length", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "L:1/4"},
-	{"M", "meter", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "M:3/4, M:4/4"},
-	{"m", "macro", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "m: ~G2 = {A}G{F}G"},
-	{"N", "notes", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeString, "N:see also O'Neills - 234"},
-	{"O", "origin", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "O:UK; Yorkshire; Bradford"},
-	{"P", "parts", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "P:A, P:ABAC, P:(A2B)3"},
-	{"Q", "tempo", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "Q:\"allegro\" 1/4=120"},
-	{"R", "rhythm", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeString, "R:R, R:reel"},
-	{"r", "remark", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeUnknown, "r:I love abc"},
-	{"S", "source", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "S:collected in Brittany"},
-	{"s", "symbol line", FieldInTuneBody, FieldTypeInstruction, "s: !pp! ** !f!"},
-	{"T", "tune title", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "T:Paddy O'Rafferty"},
-	{"U", "user defined", FieldInFileHeader | FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "U: T = !trill!"},
-	{"V", "voice", FieldInTuneHeader | FieldInTuneBody | FieldInline, FieldTypeInstruction, "V:4 clef=bass"},
-	{"W", "words", FieldInTuneHeader | FieldInTuneBody, FieldTypeString, "W:lyrics printed after the end of the tune"},
-	{"w", "words", FieldInTuneBody, FieldTypeString, "w:lyrics printed aligned with the notes of a tune"},
-	{"X", "reference number", FieldInTuneHeader, FieldTypeInstruction, "X:1, X:2"},
-	{"Z", "transcription", FieldInFileHeader | FieldInTuneHeader, FieldTypeString, "Z:John Smith, <j.s@example.com>"},
+	FieldArea,
+	FieldBook,
+	FieldComposer,
+	FieldDiscography,
+	FieldFile,
+	FieldGroup,
+	FieldHistory,
+	FieldInstruction,
+	FieldKey,
+	FieldUnitNoteLength,
+	FieldMeter,
+	FieldMacro,
+	FieldNotes,
+	FieldOrigin,
+	FieldParts,
+	FieldTempo,
+	FieldRhythm,
+	FieldRemark,
+	FieldSource,
+	FieldSymbolLine,
+	FieldTuneTitle,
+	FieldUserDefined,
+	FieldVoice,
+	FieldWords,
+	FieldWords,
+	FieldReferenceNumber,
+	FieldTranscription,
 }
+
+const (
+	AccidentalFlat    = '_'
+	AccidentalSharp   = '^'
+	AccidentalNatural = '='
+)
