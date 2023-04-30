@@ -163,7 +163,7 @@ func (p *Parser) TryParseDeco(line string) string {
 	return line
 }
 
-var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-Gzx])([,']*)([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
+var rxNote = regexp.MustCompile(`^([\_\^=]*)([a-gA-GyzZxX])([,']*)([0-9]*)(\/*)([0-9]*)([<>]*)(\-?)`)
 
 func (p *Parser) TryParseNote(line string) string {
 	if match := rxNote.FindStringSubmatch(line); len(match) > 0 {
@@ -199,7 +199,7 @@ func (p *Parser) TryParseNote(line string) string {
 		}
 
 		oct := 0
-		if up := strings.ToUpper(note); up != note { // normalize to upper-case
+		if up := strings.ToUpper(note); note != "y" && note != "Y" && note != "z" && note != "x" && up != note { // normalize to upper-case
 			note = up
 			oct++
 		}
@@ -324,7 +324,7 @@ func ParseNoteLength(s string) (n big.Rat) {
 }
 
 func trimTrailingWhitespace(line string) string {
-	return strings.TrimRight(line, " \t\n")
+	return strings.TrimRight(line, " \t\n\r")
 }
 
 func trimComment(line string) string {
