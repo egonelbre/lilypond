@@ -12,4 +12,5 @@ a>z b | _b3- |         % rests
 b3 | b3 |              % tied accidental note
 _a=a_a | ^c=c^c |      % accidentals
 |: bab || bad :|       % different bars
-.a.b.c | !marcato!e.f.g |
+.a.b.c | !marcato!e.f.g | % decorations
+_a/_b/ a/b/ a/b/- | b/a/ ac | % accidental handling

@@ -73,7 +73,8 @@ func (c *Convert) Score(tune *abc.Tune) {
 	repeatMode := repeatNone
 
 	var lastSym abc.Symbol
-	accidentals := map[string]string{}
+	barAccidentals := map[string]string{}
+	tiedNotePitch := ""
 
 	for i, stave := range tune.Body.Staves {
 		if i > 0 {
@@ -101,59 +102,68 @@ func (c *Convert) Score(tune *abc.Tune) {
 			case abc.KindNote:
 				dur := calculateDuration(&noteLength, &sym, &lastSym)
 
-				var notes []string
-				nextAccidentals := map[string]string{}
-				for _, note := range sym.Notes {
-					n := note.Pitch
-					if note.Accidentals != "" {
-						suffix := ""
-						for _, acc := range note.Accidentals {
-							switch acc {
-							case abc.AccidentalFlat:
-								suffix += "es"
-							case abc.AccidentalSharp:
-								suffix += "is"
-							case abc.AccidentalNatural:
-								suffix = ""
+				var notePitch string
+				if tiedNotePitch != "" {
+					notePitch = tiedNotePitch
+					tiedNotePitch = ""
+				} else {
+					var notes []string
+					nextAccidentals := map[string]string{}
+					for _, note := range sym.Notes {
+						n := note.Pitch
+						if note.Accidentals != "" {
+							suffix := ""
+							for _, acc := range note.Accidentals {
+								switch acc {
+								case abc.AccidentalFlat:
+									suffix += "es"
+								case abc.AccidentalSharp:
+									suffix += "is"
+								case abc.AccidentalNatural:
+									suffix = ""
+								}
 							}
+							n += suffix
+							nextAccidentals[note.Pitch] = suffix
+						} else {
+							n += barAccidentals[note.Pitch]
 						}
-						n += suffix
-						nextAccidentals[note.Pitch] = suffix
-					} else {
-						n += accidentals[note.Pitch]
+
+						oct := note.Octave + 1
+						for range iter(oct) {
+							n += "'"
+						}
+						for range iter(-oct) {
+							n += ","
+						}
+
+						notes = append(notes, n)
+					}
+					for k, v := range nextAccidentals {
+						barAccidentals[k] = v
 					}
 
-					oct := note.Octave + 1
-					for range iter(oct) {
-						n += "'"
+					switch {
+					case len(notes) > 1:
+						notePitch = "<" + strings.Join(notes, " ") + ">"
+					case len(notes) == 1:
+						notePitch = notes[0]
+					default:
+						fmt.Printf("\n\n%#v\n\n", sym)
+						panic("invalid notes")
 					}
-					for range iter(-oct) {
-						n += ","
-					}
-
-					notes = append(notes, n)
-				}
-				accidentals = nextAccidentals
-
-				value := ""
-				switch {
-				case len(notes) > 1:
-					value = "<" + strings.Join(notes, " ") + ">"
-				case len(notes) == 1:
-					value = notes[0]
-				default:
-					fmt.Printf("\n\n%#v\n\n", sym)
-					panic("invalid notes")
 				}
 
 				tie := ""
 				if sym.Tie {
 					tie = "~"
+					tiedNotePitch = notePitch
 				}
 
-				c.pf(" %s%s%s", value, durationToString(dur), tie)
+				c.pf(" %s%s%s", notePitch, durationToString(dur), tie)
 
 			case abc.KindRest:
+				tiedNotePitch = ""
 				dur := calculateDuration(&noteLength, &sym, &lastSym)
 
 				value := ""
@@ -171,7 +181,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 				}
 
 			case abc.KindBar:
-				accidentals = map[string]string{}
+				barAccidentals = map[string]string{}
 
 				// TODO: handle volta
 				switch sym.Value {

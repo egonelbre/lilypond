@@ -14,6 +14,7 @@
     bes''2. | b''2. | \break
     aes''4 a''4 aes''4 | cis''4 c''4 cis''4 | \break
     \repeat volta 2 { b''4 a''4 b''4 \bar "||" b''4 a''4 d''4 } \break
-    a''4-. b''4-. c''4-. | e''4-^ f''4-. g''4-. |
+    a''4-. b''4-. c''4-. | e''4-^ f''4-. g''4-. | \break
+    aes''8 bes''8 aes''8 bes''8 aes''8 bes''8~ | bes''8 a''8 a''4 c''4 |
   }
 }
