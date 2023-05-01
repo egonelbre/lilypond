@@ -171,6 +171,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 				}
 
 			case abc.KindBar:
+				accidentals = map[string]string{}
 
 				// TODO: handle volta
 				switch sym.Value {
