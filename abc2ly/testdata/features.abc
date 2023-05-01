@@ -1,0 +1,15 @@
+X: 1
+T: Features
+M: 3/4
+L: 1/8
+C: Composer
+H: 12 märts 1981
+K: C octave=-1
+[L:1/4] a>b a2<b2 | a/b/ c/d/ f//e/f// | % note lengths
+"C" a b "D" d |        % chords
+[^fe_d]3- | [^fe_d]3 | % multiple notes
+a>z b | _b3- |         % rests
+b3 | b3 |              % tied accidental note
+_a=a_a | ^c=c^c |      % accidentals
+|: bab || bad :|       % different bars
+.a.b.c | !marcato!e.f.g |

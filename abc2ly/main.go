@@ -72,14 +72,14 @@ func (c *Convert) Score(tune *abc.Tune) {
 
 	repeatMode := repeatNone
 
+	var lastSym abc.Symbol
+	accidentals := map[string]string{}
+
 	for i, stave := range tune.Body.Staves {
 		if i > 0 {
 			c.pf(" \\break\n")
 		}
 		c.pf("   ")
-
-		var lastSym abc.Symbol
-		accidentals := map[string]string{}
 
 		symbols := slices.Clone(stave.Symbols)
 
@@ -201,11 +201,21 @@ func (c *Convert) Score(tune *abc.Tune) {
 				}
 
 			case abc.KindDeco:
-				panic("unhandled deco " + sym.Value)
+				switch sym.Value {
+				case ".":
+					c.pf("-.")
+				case "!marcato!":
+					c.pf("-^")
+				default:
+					panic("unhandled deco " + sym.Value)
+				}
+
 			case abc.KindField:
 				switch sym.Tag {
 				case abc.FieldRemark.Tag:
 					// IGNORE
+				case abc.FieldUnitNoteLength.Tag:
+					noteLength = abc.ParseNoteLength(sym.Value)
 				default:
 					panic("unhandled field " + sym.Tag + ":" + sym.Value)
 				}
