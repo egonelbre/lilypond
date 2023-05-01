@@ -72,8 +72,10 @@ func (c *Convert) Score(tune *abc.Tune) {
 
 	repeatMode := repeatNone
 
+	keySignature := map[string]string{}
+
 	var lastSym abc.Symbol
-	barAccidentals := map[string]string{}
+	barAccidentals := slices.Clone(keySignature)
 	tiedNotePitch := ""
 
 	for i, stave := range tune.Body.Staves {
@@ -181,7 +183,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 				}
 
 			case abc.KindBar:
-				barAccidentals = map[string]string{}
+				barAccidentals = slices.Clone(keySignature)
 
 				// TODO: handle volta
 				switch sym.Value {
