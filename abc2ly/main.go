@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/egonelbre/lilypond/abc2ly/abc"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -47,6 +48,7 @@ func (c *Convert) Tune(tune *abc.Tune) {
 	c.Header(tune)
 	c.Score(tune)
 }
+
 func (c *Convert) Score(tune *abc.Tune) {
 	c.pf("\\score {\n")
 	defer c.pf("}\n")
@@ -56,7 +58,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 	defer c.pf("  }\n")
 
 	if meter, ok := tune.Fields.ByTag(abc.FieldMeter.Tag); ok {
-		c.pf("    \\time %v\n", meter.Value)
+		c.pf("    \\time %v", meter.Value)
 	}
 
 	noteLength := *big.NewRat(1, 4)
@@ -72,12 +74,22 @@ func (c *Convert) Score(tune *abc.Tune) {
 
 	repeatMode := repeatNone
 
-	keySignature := map[string]string{}
+	keySignature, octaveOffset := map[string]string{}, 1
+	if k, ok := tune.Fields.ByTag(abc.FieldKey.Tag); ok {
+		var key string
+		key, keySignature, octaveOffset = parseKeySignature(k.Value, octaveOffset)
+		decl, ok := abcKeySignatureToLilypond[key]
+		if !ok {
+			panic("unhandled signature " + key)
+		}
+		c.pf(" %s", decl)
+	}
 
 	var lastSym abc.Symbol
-	barAccidentals := slices.Clone(keySignature)
+	barAccidentals := maps.Clone(keySignature)
 	tiedNotePitch := ""
 
+	c.pf("\n")
 	for i, stave := range tune.Body.Staves {
 		if i > 0 {
 			c.pf(" \\break\n")
@@ -131,7 +143,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 							n += barAccidentals[note.Pitch]
 						}
 
-						oct := note.Octave + 1
+						oct := note.Octave + octaveOffset
 						for range iter(oct) {
 							n += "'"
 						}
@@ -183,7 +195,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 				}
 
 			case abc.KindBar:
-				barAccidentals = slices.Clone(keySignature)
+				barAccidentals = maps.Clone(keySignature)
 
 				// TODO: handle volta
 				switch sym.Value {
@@ -229,6 +241,16 @@ func (c *Convert) Score(tune *abc.Tune) {
 					// IGNORE
 				case abc.FieldUnitNoteLength.Tag:
 					noteLength = abc.ParseNoteLength(sym.Value)
+				case abc.FieldKey.Tag:
+					var key string
+					key, keySignature, octaveOffset = parseKeySignature(sym.Value, octaveOffset)
+					barAccidentals = maps.Clone(keySignature)
+
+					decl, ok := abcKeySignatureToLilypond[key]
+					if !ok {
+						panic("unhandled signature " + key)
+					}
+					c.pf(" %s", decl)
 				default:
 					panic("unhandled field " + sym.Tag + ":" + sym.Value)
 				}
@@ -264,6 +286,118 @@ func calculateDuration(noteLength *big.Rat, sym, lastNote *abc.Symbol) big.Rat {
 	}
 
 	return dur
+}
+
+func parseKeySignature(keysig string, octaveOffset int) (key string, accidentals map[string]string, octave int) {
+	// TODO: allow only changing octave etc.
+
+	if keysig == "" {
+		return "", map[string]string{}, octaveOffset
+	}
+	accidentals = map[string]string{}
+
+	fields := strings.Fields(keysig)
+	if len(fields) > 0 {
+		accidentals = lookupAccidentalMap(fields[0])
+		key = strings.ToLower(fields[0])
+	}
+
+	for _, f := range fields[1:] {
+		if strings.HasPrefix(f, "octave=") {
+			octs := strings.TrimPrefix(f, "octave=")
+			n, err := strconv.Atoi(octs)
+			if err != nil {
+				panic(err) // TODO: proper handling
+			}
+			octaveOffset = n + 1
+		}
+	}
+
+	return key, accidentals, octaveOffset
+}
+
+var abcKeySignatureToLilypond = map[string]string{
+	"c#": `\key cis \major`,
+	"f#": `\key fis \major`,
+	"b":  `\key b \major`,
+	"e":  `\key e \major`,
+	"a":  `\key a \major`,
+	"d":  `\key d \major`,
+	"g":  `\key g \major`,
+	"c":  `\key c \major`,
+	"f":  `\key f \major`,
+	"bb": `\key bes \major`,
+	"eb": `\key ees \major`,
+	"ab": `\key aes \major`,
+	"db": `\key des \major`,
+	"gb": `\key ges \major`,
+	"cb": `\key ces \major`,
+
+	"a#m": `\key ais \minor`,
+	"d#m": `\key dis \minor`,
+	"g#m": `\key gis \minor`,
+	"c#m": `\key cis \minor`,
+	"f#m": `\key fis \minor`,
+	"bm":  `\key b \minor`,
+	"em":  `\key e \minor`,
+	"am":  `\key a \minor`,
+	"dm":  `\key d \minor`,
+	"gm":  `\key g \minor`,
+	"cm":  `\key c \minor`,
+	"fm":  `\key f \minor`,
+	"bbm": `\key bes \minor`,
+	"ebm": `\key ees \minor`,
+	"abm": `\key aes \minor`,
+}
+
+func lookupAccidentalMap(k string) map[string]string {
+	const sh = "fcgdaeb"
+	const fl = "beadgcf"
+	// F♯, C♯, G♯, D♯, A♯, E♯, B♯
+	// B♭, E♭, A♭, D♭, G♭, C♭, F♭
+
+	switch strings.ToLower(k) {
+	case "c#", "a#m", "g#mix", "d#dor", "e#phr", "f#lyd", "b#loc":
+		return makeAccidentalMap(sh[:7], "is")
+	case "f#", "d#m", "c#mix", "g#dor", "a#phr", "blyd", "e#loc":
+		return makeAccidentalMap(sh[:6], "is")
+	case "b", "g#m", "f#mix", "c#dor", "d#phr", "elyd", "a#loc":
+		return makeAccidentalMap(sh[:5], "is")
+	case "e", "c#m", "bmix", "f#dor", "g#phr", "alyd", "d#loc":
+		return makeAccidentalMap(sh[:4], "is")
+	case "a", "f#m", "emix", "bdor", "c#phr", "dlyd", "g#loc":
+		return makeAccidentalMap(sh[:3], "is")
+	case "d", "bm", "amix", "edor", "f#phr", "glyd", "c#loc":
+		return makeAccidentalMap(sh[:2], "is")
+	case "g", "em", "dmix", "ador", "bphr", "clyd", "f#loc":
+		return makeAccidentalMap(sh[:1], "is")
+	case "c", "am", "gmix", "ddor", "ephr", "flyd", "bloc":
+		return map[string]string{}
+	case "f", "dm", "cmix", "gdor", "aphr", "bblyd", "eloc":
+		return makeAccidentalMap(fl[:1], "es")
+	case "bb", "gm", "fmix", "cdor", "dphr", "eblyd", "aloc":
+		return makeAccidentalMap(fl[:2], "es")
+	case "eb", "cm", "bbmix", "fdor", "gphr", "ablyd", "dloc":
+		return makeAccidentalMap(fl[:3], "es")
+	case "ab", "fm", "ebmix", "bbdor", "cphr", "dblyd", "gloc":
+		return makeAccidentalMap(fl[:4], "es")
+	case "db", "bbm", "abmix", "ebdor", "fphr", "gblyd", "cloc":
+		return makeAccidentalMap(fl[:5], "es")
+	case "gb", "ebm", "dbmix", "abdor", "bbphr", "cblyd", "floc":
+		return makeAccidentalMap(fl[:6], "es")
+	case "cb", "abm", "gbmix", "dbdor", "ebphr", "fblyd", "bbloc":
+		return makeAccidentalMap(fl[:7], "es")
+	default:
+		panic("unknown key " + k)
+	}
+}
+
+func makeAccidentalMap(k string, sig string) map[string]string {
+	acc := make(map[string]string)
+	for _, r := range k {
+		acc[string(r)] += sig
+	}
+	return acc
 }
 
 func iter(n int) []struct{} {
