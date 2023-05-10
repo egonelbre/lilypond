@@ -1,0 +1,30 @@
+X: 1
+T: Repeat
+M: 4/4
+K: C
+|: C | D || E | F :| G |]
+
+X: 2
+T: Double repeats
+M: 4/4
+K: C
+|: C | D :|: E :||: F :|]
+
+X: 3
+T: Voltas
+M: 4/4
+K: C
+|: C |1 D :|2 E || F |]
+
+X: 4
+T: Voltas Double Bar
+M: 4/4
+K: C
+|: C |1 D :||2 E || F |]
+
+
+X: 5
+T: Voltas End
+M: 4/4
+K: C
+|: C |1 D :||2 E | F |]
