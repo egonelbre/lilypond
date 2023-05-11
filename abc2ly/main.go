@@ -45,13 +45,14 @@ func (c *Convert) pf(format string, args ...any) {
 }
 
 func (c *Convert) Tune(tune *abc.Tune) {
-	c.Header(tune)
 	c.Score(tune)
 }
 
 func (c *Convert) Score(tune *abc.Tune) {
 	c.pf("\\score {\n")
 	defer c.pf("}\n")
+
+	c.Header(tune)
 
 	c.pf("  \\new Staff{\n")
 	c.pf("  \\accidentalStyle modern\n")
@@ -66,13 +67,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 		noteLength = abc.ParseNoteLength(f.Value)
 	}
 
-	const (
-		repeatNone      = 0
-		repeatNormal    = 1
-		repeatAlternate = 2
-	)
-
-	repeatMode := repeatNone
+	insideRepeat, insideVolta := false, false
 
 	keySignature, octaveOffset := map[string]string{}, 1
 	if k, ok := tune.Fields.ByTag(abc.FieldKey.Tag); ok {
@@ -198,31 +193,91 @@ func (c *Convert) Score(tune *abc.Tune) {
 				barAccidentals = maps.Clone(keySignature)
 
 				// TODO: handle volta
+
 				switch sym.Value {
 				case "|":
 					c.pf(` |`)
+					if sym.Volta != "" {
+						c.pf(` \set Score.repeatCommands = #'((volta %q))`, sym.Volta)
+						insideVolta = true
+					} else if sym.CloseVolta {
+						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						insideVolta = false
+					}
 				case "||":
 					c.pf(` \bar "||"`)
+					if sym.Volta != "" {
+						c.pf(` \set Score.repeatCommands = #'((volta %q))`, sym.Volta)
+						insideVolta = true
+					} else if insideVolta || sym.CloseVolta {
+						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						insideVolta = false
+					}
 				case "|]":
-					if repeatMode != repeatNone {
+					if insideRepeat {
 						panic("still in repeat")
 					}
-					c.pf(` \bar "|."`)
-				case "|:":
-					c.pf(` \repeat volta 2 {`)
-					repeatMode = repeatNormal
-				case ":|", ":|]", ":]":
-					if repeatMode == repeatNone {
-						panic("not in repeat")
+					if insideVolta || sym.CloseVolta {
+						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						insideVolta = false
 					}
-					c.pf(" }")
-					repeatMode = repeatNone
+					if sym.Volta != "" {
+						panic("did not expect volta on |]")
+					}
+					c.pf(` \bar "|."`)
+				case "::", ":|:", ":||:":
+					var commands []string
+
+					commands = append(commands, "end-repeat")
+					commands = append(commands, "start-repeat")
+					insideRepeat = true
+
+					if sym.Volta != "" {
+						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						insideVolta = true
+					} else if insideVolta || sym.CloseVolta {
+						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						insideVolta = false
+					}
+
+					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
+
+				case "|:", "||:":
+					var commands []string
+					if insideRepeat {
+						commands = append(commands, "end-repeat")
+						insideRepeat = false
+					}
+
+					commands = append(commands, "start-repeat")
+					insideRepeat = true
+
+					if sym.Volta != "" {
+						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						insideVolta = true
+					} else if insideVolta || sym.CloseVolta {
+						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						insideVolta = false
+					}
+
+					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
+
+				case ":|", ":||", ":|]", ":]":
+					commands := []string{"end-repeat"}
+					insideRepeat = false
+
+					if sym.Volta != "" {
+						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						insideVolta = true
+					} else if insideVolta || sym.CloseVolta {
+						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						insideVolta = false
+					}
+
+					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
+
 				default:
 					panic("unhandled bar " + sym.Value)
-				}
-
-				if sym.Volta != "" {
-					panic("unhandled volta")
 				}
 
 			case abc.KindDeco:
@@ -422,16 +477,16 @@ func durationToString(dur big.Rat) string {
 }
 
 func (c *Convert) Header(tune *abc.Tune) {
-	c.pf("\\header {\n")
-	defer c.pf("}\n")
+	c.pf("  \\header {\n")
+	defer c.pf("  }\n")
 
-	c.pf("    piece = %q\n", tune.Title)
+	c.pf("      piece = %q\n", tune.Title)
 	for _, field := range tune.Fields {
 		switch field.Tag {
 		case abc.FieldComposer.Tag:
-			c.pf("    composer = %q\n", field.Value)
+			c.pf("      composer = %q\n", field.Value)
 		case abc.FieldHistory.Tag:
-			c.pf("    history = %q\n", field.Value)
+			c.pf("      history = %q\n", field.Value)
 		}
 	}
 }

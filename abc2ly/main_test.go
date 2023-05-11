@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +36,9 @@ func TestConvert(t *testing.T) {
 			}
 
 			var out bytes.Buffer
+			fmt.Fprintln(&out, `\version "2.24.1"`)
+			fmt.Fprintln(&out, `\header { tagline = #f }`)
+			fmt.Fprintln(&out)
 
 			convert := &Convert{Output: &out}
 			for _, tune := range book.Tunes {
@@ -55,7 +59,7 @@ func TestConvert(t *testing.T) {
 			if diff != "" {
 				t.Error(diff)
 				if *update {
-					os.WriteFile("testdata/features.ly", out.Bytes(), 0644)
+					os.WriteFile(lypath, out.Bytes(), 0644)
 				}
 				t.Log("LILYPOND OUTPUT:\n", out.String())
 			}

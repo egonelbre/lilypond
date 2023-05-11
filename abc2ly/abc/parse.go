@@ -281,6 +281,7 @@ func (p *Parser) TryParseText(line string) string {
 	return line
 }
 
+// `:|: [1-2`
 var rxBar = regexp.MustCompile(`^([\:\|\[\]]*[\:\|\]])(?:(?:\s*\[)?([0-9\-\,]+)|(\])|)`)
 
 func (p *Parser) TryParseBar(line string) string {
@@ -292,24 +293,13 @@ func (p *Parser) TryParseBar(line string) string {
 			volta = strings.TrimLeft(volta, " [")
 		}
 
-		switch bar {
-		case "::", ":|:", ":||:":
-			p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
-				Kind:  KindBar,
-				Value: ":|",
-				Volta: end,
-			}, Symbol{
-				Kind:  KindBar,
-				Value: "|:",
-				Volta: volta,
-			})
-		default:
-			p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
-				Kind:  KindBar,
-				Value: match[1],
-				Volta: volta + end,
-			})
-		}
+		p.Stave.Symbols = append(p.Stave.Symbols, Symbol{
+			Kind:  KindBar,
+			Value: bar,
+			Volta: volta,
+
+			CloseVolta: end != "",
+		})
 
 		return strings.TrimLeft(line[len(match[0]):], " ")
 	}
@@ -420,6 +410,8 @@ type Symbol struct {
 	Tie   bool
 	Tag   string
 	Volta string
+
+	CloseVolta bool
 }
 
 type Note struct {
