@@ -32,3 +32,10 @@ L: 1/4
 M: 4/4
 K: C
 |: C4 |1 D4 :||2 E4 | F4 |]
+
+X: 6
+T: Segno Coda
+L: 1/4
+M: 4/4
+K: C
+| C4 | !segno! D4 | E4 !coda! || F4 !segno! || !coda! C4 | D4 |]

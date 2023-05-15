@@ -51,3 +51,13 @@
     \set Score.repeatCommands = #'(start-repeat) c'1 | \set Score.repeatCommands = #'((volta "1")) d'1 \set Score.repeatCommands = #'(end-repeat (volta "2")) e'1 | f'1 \set Score.repeatCommands = #'((volta #f)) \bar "|."
   }
 }
+\score {
+  \header {
+      piece = "Segno Coda"
+  }
+  \new Staff{
+  \accidentalStyle modern
+    \time 4/4 \key c \major
+    | c'1 | d'1 \segnoMark 1  | e'1 \codaMark 1  \bar "||" f'1 \segnoMark 1  \bar "||" c'1 \codaMark 1  | d'1 \bar "|."
+  }
+}

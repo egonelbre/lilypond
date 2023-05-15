@@ -286,6 +286,10 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf("-.")
 				case "!marcato!":
 					c.pf("-^")
+				case "!segno!":
+					c.pf(` \segnoMark 1 `)
+				case "!coda!":
+					c.pf(` \codaMark 1 `)
 				default:
 					panic("unhandled deco " + sym.Value)
 				}
