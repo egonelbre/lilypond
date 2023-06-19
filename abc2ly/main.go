@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
 	"math/big"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -15,7 +17,14 @@ import (
 )
 
 func main() {
+	filePerTune := flag.Bool("file-per-tune", false, "creates a single file per tune")
+	outdir := flag.String("out", "", "output directory")
 	flag.Parse()
+
+	if *filePerTune && *outdir == "" {
+		fmt.Fprint(os.Stderr, "-out required when using -file-per-tune")
+		os.Exit(1)
+	}
 
 	data, err := os.ReadFile(flag.Arg(0))
 	if err != nil {
@@ -30,9 +39,42 @@ func main() {
 		fmt.Fprintln(os.Stderr, "\t", warning.Message)
 	}
 
-	c := Convert{Output: os.Stdout}
-	for _, tune := range book.Tunes {
-		c.Tune(tune)
+	if *filePerTune {
+		paths := []string{}
+
+		os.MkdirAll(*outdir, 0755)
+
+		for _, tune := range book.Tunes {
+			if tune.ID == "" {
+				// TODO: handle this better
+				continue
+			}
+			out := &bytes.Buffer{}
+			c := Convert{Output: out}
+			c.Tune(tune)
+			p := filepath.Join(*outdir, tune.ID+".ly")
+			err := os.WriteFile(p, out.Bytes(), 0o644)
+			if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				continue
+			}
+			paths = append(paths, tune.ID+".ly")
+		}
+
+		main := &bytes.Buffer{}
+		for _, p := range paths {
+			fmt.Fprintf(main, "\\include %q\n", p)
+		}
+
+		err := os.WriteFile(filepath.Join(*outdir, "_index.ly"), main.Bytes(), 0644)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	} else {
+		c := Convert{Output: os.Stdout}
+		for _, tune := range book.Tunes {
+			c.Tune(tune)
+		}
 	}
 }
 
@@ -55,7 +97,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 	c.Header(tune)
 
 	c.pf("  \\new Staff{\n")
-	c.pf("  \\accidentalStyle modern\n")
+	c.pf("  \\configureStaff\n")
 	defer c.pf("  }\n")
 
 	if meter, ok := tune.Fields.ByTag(abc.FieldMeter.Tag); ok {
@@ -186,7 +228,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf(" %s%s", value, durationToString(dur))
 				case "y":
 				default:
-					panic("unhandled rest " + sym.Value)
+					panic("unhandled rest " + sym.Value + " tune:" + tune.ID)
 				}
 
 			case abc.KindBar:
@@ -277,7 +319,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
 
 				default:
-					panic("unhandled bar " + sym.Value)
+					panic("unhandled bar " + sym.Value + " tune:" + tune.ID)
 				}
 
 			case abc.KindDeco:
@@ -290,16 +332,20 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf(` \segnoMark 1 `)
 				case "!coda!":
 					c.pf(` \codaMark 1 `)
+				case "!accent!":
+					// TODO:
 				default:
-					panic("unhandled deco " + sym.Value)
+					panic("unhandled deco " + sym.Value + " tune:" + tune.ID)
 				}
 
 			case abc.KindField:
 				switch sym.Tag {
-				case abc.FieldRemark.Tag:
+				case abc.FieldRemark.Tag, abc.FieldNotes.Tag:
 					// IGNORE
 				case abc.FieldUnitNoteLength.Tag:
 					noteLength = abc.ParseNoteLength(sym.Value)
+				case abc.FieldMeter.Tag:
+					// TODO:
 				case abc.FieldKey.Tag:
 					var key string
 					key, keySignature, octaveOffset = parseKeySignature(sym.Value, octaveOffset)
@@ -311,10 +357,10 @@ func (c *Convert) Score(tune *abc.Tune) {
 					}
 					c.pf(" %s", decl)
 				default:
-					panic("unhandled field " + sym.Tag + ":" + sym.Value)
+					panic("unhandled field " + sym.Tag + ":" + sym.Value + " tune:" + tune.ID)
 				}
 			default:
-				panic("unhandled " + sym.Kind.String())
+				panic("unhandled " + sym.Kind.String() + " tune:" + tune.ID)
 			}
 
 			if sym.Kind == abc.KindNote || sym.Kind == abc.KindRest {
