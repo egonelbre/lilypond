@@ -1,5 +1,4 @@
 \version "2.24.0"
-\include "set-repeat-command.ily"
 \header { tagline = #f }
 
 \score {
@@ -26,7 +25,7 @@
   }
   \new Staff{
     \time 4/4 \key c \major
-    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand #"2" e'1 \bar "||" \setRepeatCommand ##f f'1 \bar "|."
+    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand ##f \setRepeatCommand #"2" e'1 \bar "||" \setRepeatCommand ##f f'1 \bar "|."
   }
 }
 \score {
@@ -35,7 +34,7 @@
   }
   \new Staff{
     \time 4/4 \key c \major
-    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand #"2" e'1 \bar "||" \setRepeatCommand ##f f'1 \bar "|."
+    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand ##f \setRepeatCommand #"2" e'1 \bar "||" \setRepeatCommand ##f f'1 \bar "|."
   }
 }
 \score {
@@ -44,7 +43,7 @@
   }
   \new Staff{
     \time 4/4 \key c \major
-    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand #"2" e'1 | f'1 \setRepeatCommand ##f \bar "|."
+    \setRepeatCommand #'start-repeat c'1 | \setRepeatCommand #"1" d'1 \setRepeatCommand #'end-repeat \setRepeatCommand ##f \setRepeatCommand #"2" e'1 | f'1 \setRepeatCommand ##f \bar "|."
   }
 }
 \score {

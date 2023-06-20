@@ -249,12 +249,13 @@ func (c *Convert) Score(tune *abc.Tune) {
 				switch sym.Value {
 				case "|":
 					c.pf(` |`)
+					if sym.CloseVolta {
+						c.pf(` \setRepeatCommand ##f`)
+						insideVolta = false
+					}
 					if sym.Volta != "" {
 						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
-					} else if sym.CloseVolta {
-						c.pf(` \setRepeatCommand ##f`)
-						insideVolta = false
 					}
 				case "||":
 					if nextSym.Kind == abc.KindBar && (nextSym.Value == "|:" || nextSym.Value == "||:") {
@@ -262,13 +263,13 @@ func (c *Convert) Score(tune *abc.Tune) {
 					} else {
 						c.pf(` \bar "||"`)
 					}
-
+					if insideVolta || sym.CloseVolta {
+						c.pf(` \setRepeatCommand ##f`)
+						insideVolta = false
+					}
 					if sym.Volta != "" {
 						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
-					} else if insideVolta || sym.CloseVolta {
-						c.pf(` \setRepeatCommand ##f`)
-						insideVolta = false
 					}
 				case "|]":
 					if insideRepeat {
@@ -287,14 +288,14 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf(` \setRepeatCommand #'start-repeat`)
 					insideRepeat = true
 
-					if sym.Volta != "" {
-						c.pf(` \setRepeatCommand #%q`, sym.Volta)
-						insideVolta = true
-					} else if insideVolta || sym.CloseVolta {
+					if insideVolta || sym.CloseVolta {
 						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
-
+					if sym.Volta != "" {
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
+						insideVolta = true
+					}
 				case "|:", "||:":
 					if insideRepeat {
 						c.pf(` \setRepeatCommand #'end-repeat`)
@@ -304,24 +305,26 @@ func (c *Convert) Score(tune *abc.Tune) {
 					c.pf(` \setRepeatCommand #'start-repeat`)
 					insideRepeat = true
 
+					if insideVolta || sym.CloseVolta {
+						c.pf(` \setRepeatCommand ##f`)
+						insideVolta = false
+					}
 					if sym.Volta != "" {
 						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
-					} else if insideVolta || sym.CloseVolta {
-						c.pf(` \setRepeatCommand ##f`)
-						insideVolta = false
 					}
 
 				case ":|", ":||", ":|]", ":]":
 					c.pf(` \setRepeatCommand #'end-repeat`)
 					insideRepeat = false
 
+					if insideVolta || sym.CloseVolta {
+						c.pf(` \setRepeatCommand ##f`)
+						insideVolta = false
+					}
 					if sym.Volta != "" {
 						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
-					} else if insideVolta || sym.CloseVolta {
-						c.pf(` \setRepeatCommand ##f`)
-						insideVolta = false
 					}
 
 				default:
