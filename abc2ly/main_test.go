@@ -37,6 +37,7 @@ func TestConvert(t *testing.T) {
 
 			var out bytes.Buffer
 			fmt.Fprintln(&out, `\version "2.24.0"`)
+			fmt.Fprintln(&out, `\include "set-repeat-command.ily"`)
 			fmt.Fprintln(&out, `\header { tagline = #f }`)
 			fmt.Fprintln(&out)
 

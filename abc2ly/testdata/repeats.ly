@@ -1,4 +1,5 @@
 \version "2.24.0"
+\include "set-repeat-command.ily"
 \header { tagline = #f }
 
 \score {
@@ -63,6 +64,16 @@
     \time 4/4 \key c \major
     \setRepeatCommand #'start-repeat c'1 | d'1 \setRepeatCommand #'end-repeat \break
     \setRepeatCommand #'start-repeat c'1 | d'1 \setRepeatCommand #'end-repeat \break
+    \setRepeatCommand #'start-repeat c'1 | d'1 \setRepeatCommand #'end-repeat
+  }
+}
+\score {
+  \header {
+      piece = "Double Bar and Repeat"
+  }
+  \new Staff{
+    \time 4/4 \key c \major
+    | c'1 | d'1 \bar ".|:-||" \break
     \setRepeatCommand #'start-repeat c'1 | d'1 \setRepeatCommand #'end-repeat
   }
 }

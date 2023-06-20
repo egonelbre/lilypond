@@ -1,4 +1,5 @@
 \version "2.24.0"
+\include "set-repeat-command.ily"
 \header { tagline = #f }
 
 \score {

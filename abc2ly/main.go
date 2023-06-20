@@ -51,7 +51,7 @@ func main() {
 			}
 			out := &bytes.Buffer{}
 			c := Convert{Output: out}
-			c.pf("\\include \"set-repeat-command.ily\"")
+			c.pf("\\include \"set-repeat-command.ily\"\n")
 			c.Tune(tune)
 			p := filepath.Join(*outdir, tune.ID+".ly")
 			err := os.WriteFile(p, out.Bytes(), 0o644)
@@ -73,7 +73,7 @@ func main() {
 		}
 	} else {
 		c := Convert{Output: os.Stdout}
-		c.pf("\\include \"set-repeat-command.ily\"")
+		c.pf("\\include \"set-repeat-command.ily\"\n")
 		for _, tune := range book.Tunes {
 			c.Tune(tune)
 		}
@@ -128,8 +128,8 @@ func (c *Convert) Score(tune *abc.Tune) {
 	tiedNotePitch := ""
 
 	c.pf("\n")
-	for i, stave := range tune.Body.Staves {
-		if i > 0 {
+	for stavei, stave := range tune.Body.Staves {
+		if stavei > 0 {
 			c.pf(" \\break\n")
 		}
 		c.pf("   ")
@@ -147,7 +147,14 @@ func (c *Convert) Score(tune *abc.Tune) {
 			}
 		}
 
-		for _, sym := range symbols {
+		for symi, sym := range symbols {
+			var nextSym abc.Symbol
+			if symi+1 < len(symbols) {
+				nextSym = symbols[symi+1]
+			} else if stavei+1 < len(tune.Body.Staves) {
+				nextSym = tune.Body.Staves[stavei+1].Symbols[0]
+			}
+
 			switch sym.Kind {
 			case abc.KindText:
 				c.pf(" ^%q", sym.Value)
@@ -248,7 +255,12 @@ func (c *Convert) Score(tune *abc.Tune) {
 						insideVolta = false
 					}
 				case "||":
-					c.pf(` \bar "||"`)
+					if nextSym.Kind == abc.KindBar && (nextSym.Value == "|:" || nextSym.Value == "||:") {
+						c.pf(` \bar ".|:-||"`)
+					} else {
+						c.pf(` \bar "||"`)
+					}
+
 					if sym.Volta != "" {
 						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
