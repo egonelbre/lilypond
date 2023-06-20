@@ -51,6 +51,7 @@ func main() {
 			}
 			out := &bytes.Buffer{}
 			c := Convert{Output: out}
+			c.pf("\\include \"set-repeat-command.ily\"")
 			c.Tune(tune)
 			p := filepath.Join(*outdir, tune.ID+".ly")
 			err := os.WriteFile(p, out.Bytes(), 0o644)
@@ -72,6 +73,7 @@ func main() {
 		}
 	} else {
 		c := Convert{Output: os.Stdout}
+		c.pf("\\include \"set-repeat-command.ily\"")
 		for _, tune := range book.Tunes {
 			c.Tune(tune)
 		}
@@ -97,7 +99,6 @@ func (c *Convert) Score(tune *abc.Tune) {
 	c.Header(tune)
 
 	c.pf("  \\new Staff{\n")
-	c.pf("  \\configureStaff\n")
 	defer c.pf("  }\n")
 
 	if meter, ok := tune.Fields.ByTag(abc.FieldMeter.Tag); ok {
@@ -240,19 +241,19 @@ func (c *Convert) Score(tune *abc.Tune) {
 				case "|":
 					c.pf(` |`)
 					if sym.Volta != "" {
-						c.pf(` \set Score.repeatCommands = #'((volta %q))`, sym.Volta)
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
 					} else if sym.CloseVolta {
-						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
 				case "||":
 					c.pf(` \bar "||"`)
 					if sym.Volta != "" {
-						c.pf(` \set Score.repeatCommands = #'((volta %q))`, sym.Volta)
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
 					} else if insideVolta || sym.CloseVolta {
-						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
 				case "|]":
@@ -260,7 +261,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 						panic("still in repeat")
 					}
 					if insideVolta || sym.CloseVolta {
-						c.pf(` \set Score.repeatCommands = #'((volta #f))`)
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
 					if sym.Volta != "" {
@@ -268,55 +269,46 @@ func (c *Convert) Score(tune *abc.Tune) {
 					}
 					c.pf(` \bar "|."`)
 				case "::", ":|:", ":||:":
-					var commands []string
-
-					commands = append(commands, "end-repeat")
-					commands = append(commands, "start-repeat")
+					c.pf(` \setRepeatCommand #'end-repeat`)
+					c.pf(` \setRepeatCommand #'start-repeat`)
 					insideRepeat = true
 
 					if sym.Volta != "" {
-						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
 					} else if insideVolta || sym.CloseVolta {
-						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
 
-					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
-
 				case "|:", "||:":
-					var commands []string
 					if insideRepeat {
-						commands = append(commands, "end-repeat")
+						c.pf(` \setRepeatCommand #'end-repeat`)
 						insideRepeat = false
 					}
 
-					commands = append(commands, "start-repeat")
+					c.pf(` \setRepeatCommand #'start-repeat`)
 					insideRepeat = true
 
 					if sym.Volta != "" {
-						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
 					} else if insideVolta || sym.CloseVolta {
-						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
 
-					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
-
 				case ":|", ":||", ":|]", ":]":
-					commands := []string{"end-repeat"}
+					c.pf(` \setRepeatCommand #'end-repeat`)
 					insideRepeat = false
 
 					if sym.Volta != "" {
-						commands = append(commands, fmt.Sprintf("(volta %q)", sym.Volta))
+						c.pf(` \setRepeatCommand #%q`, sym.Volta)
 						insideVolta = true
 					} else if insideVolta || sym.CloseVolta {
-						commands = append(commands, fmt.Sprintf("(volta #f)"))
+						c.pf(` \setRepeatCommand ##f`)
 						insideVolta = false
 					}
-
-					c.pf(` \set Score.repeatCommands = #'(%s)`, strings.Join(commands, " "))
 
 				default:
 					panic("unhandled bar " + sym.Value + " tune:" + tune.ID)

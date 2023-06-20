@@ -39,3 +39,12 @@ L: 1/4
 M: 4/4
 K: C
 | C4 | !segno! D4 | E4 !coda! || F4 !segno! || !coda! C4 | D4 |]
+
+X: 7
+T: Multiple Repeats
+L: 1/4
+M: 4/4
+K: C
+|: C4 | D4 :|
+|: C4 | D4 :|
+|: C4 | D4 :|]

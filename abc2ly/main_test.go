@@ -36,7 +36,7 @@ func TestConvert(t *testing.T) {
 			}
 
 			var out bytes.Buffer
-			fmt.Fprintln(&out, `\version "2.24.1"`)
+			fmt.Fprintln(&out, `\version "2.24.0"`)
 			fmt.Fprintln(&out, `\header { tagline = #f }`)
 			fmt.Fprintln(&out)
 
