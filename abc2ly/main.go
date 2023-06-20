@@ -51,7 +51,8 @@ func main() {
 			}
 			out := &bytes.Buffer{}
 			c := Convert{Output: out}
-			c.pf("\\include \"set-repeat-command.ily\"\n")
+			c.pf(`\version "2.24.0"` + "\n")
+			//c.pf("\\include \"set-repeat-command.ily\"\n")
 			c.Tune(tune)
 			p := filepath.Join(*outdir, tune.ID+".ly")
 			err := os.WriteFile(p, out.Bytes(), 0o644)
@@ -73,7 +74,8 @@ func main() {
 		}
 	} else {
 		c := Convert{Output: os.Stdout}
-		c.pf("\\include \"set-repeat-command.ily\"\n")
+		c.pf(`\version "2.24.0"` + "\n")
+		//c.pf("\\include \"set-repeat-command.ily\"\n")
 		for _, tune := range book.Tunes {
 			c.Tune(tune)
 		}
