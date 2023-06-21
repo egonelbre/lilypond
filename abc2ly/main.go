@@ -185,9 +185,13 @@ func (c *Convert) Score(tune *abc.Tune) {
 								}
 							}
 							n += suffix
-							nextAccidentals[note.Pitch] = suffix
+							nextAccidentals[note.PitchOctave()] = suffix
 						} else {
-							n += barAccidentals[note.Pitch]
+							if localSuffix, ok := barAccidentals[note.PitchOctave()]; ok {
+								n += localSuffix
+							} else if keySuffix, ok := barAccidentals[note.Pitch]; ok {
+								n += keySuffix
+							}
 						}
 
 						oct := note.Octave + octaveOffset

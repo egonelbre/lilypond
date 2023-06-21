@@ -420,6 +420,10 @@ type Note struct {
 	Octave      int
 }
 
+func (n Note) PitchOctave() string {
+	return n.Pitch + strconv.Itoa(n.Octave)
+}
+
 type Kind byte
 
 func (k Kind) String() string {
