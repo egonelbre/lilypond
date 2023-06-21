@@ -548,6 +548,12 @@ func (c *Convert) Header(tune *abc.Tune) {
 			c.pf("      composer = %q\n", field.Value)
 		case abc.FieldHistory.Tag:
 			c.pf("      history = %q\n", field.Value)
+		case abc.FieldTempo.Tag:
+			value := field.Value
+			if unquoted, err := strconv.Unquote(value); err == nil {
+				value = unquoted
+			}
+			c.pf("      meter = %q\n", value)
 		}
 	}
 }
