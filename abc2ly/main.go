@@ -342,7 +342,7 @@ func (c *Convert) Score(tune *abc.Tune) {
 				case "!coda!":
 					c.pf(` \codaMark 1 `)
 				case "!accent!":
-					// TODO:
+					c.pf(`->`)
 				default:
 					panic("unhandled deco " + sym.Value + " tune:" + tune.ID)
 				}
@@ -353,8 +353,6 @@ func (c *Convert) Score(tune *abc.Tune) {
 					// IGNORE
 				case abc.FieldUnitNoteLength.Tag:
 					noteLength = abc.ParseNoteLength(sym.Value)
-				case abc.FieldMeter.Tag:
-					// TODO:
 				case abc.FieldKey.Tag:
 					var key string
 					key, keySignature, octaveOffset = parseKeySignature(sym.Value, octaveOffset)
